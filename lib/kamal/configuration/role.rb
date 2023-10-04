@@ -182,12 +182,12 @@ class Kamal::Configuration::Role
       if running_traefik?
         {
           # Setting a service property ensures that the generated service name will be consistent between versions
-          "traefik.http.services.#{traefik_service}.loadbalancer.server.scheme" => "http",
+          "#{traefik_container_name}.http.services.#{traefik_service}.loadbalancer.server.scheme" => "http",
 
-          "traefik.http.routers.#{traefik_service}.rule" => "PathPrefix(`/`)",
-          "traefik.http.middlewares.#{traefik_service}-retry.retry.attempts" => "5",
-          "traefik.http.middlewares.#{traefik_service}-retry.retry.initialinterval" => "500ms",
-          "traefik.http.routers.#{traefik_service}.middlewares" => "#{traefik_service}-retry@docker"
+          "#{traefik_container_name}.http.routers.#{traefik_service}.rule" => "PathPrefix(`/`)",
+          "#{traefik_container_name}.http.middlewares.#{traefik_service}-retry.retry.attempts" => "5",
+          "#{traefik_container_name}.http.middlewares.#{traefik_service}-retry.retry.initialinterval" => "500ms",
+          "#{traefik_container_name}.http.routers.#{traefik_service}.middlewares" => "#{traefik_service}-retry@docker"
         }
       else
         {}
@@ -196,6 +196,10 @@ class Kamal::Configuration::Role
 
     def traefik_service
       [ config.service, name, config.destination ].compact.join("-")
+    end
+
+    def traefik_container_name
+      config.traefik["name"] || "traefik"
     end
 
     def custom_labels
