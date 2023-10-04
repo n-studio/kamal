@@ -12,7 +12,7 @@ class Kamal::Commands::Traefik < Kamal::Commands::Base
       "--detach",
       "--restart", "unless-stopped",
       *publish_args,
-      "--volume", "/var/run/docker.sock:/var/run/docker.sock",
+      "--volume", "/var/run/docker-#{container_name}.sock:/var/run/docker.sock",
       *env_args,
       *config.logging_args,
       *label_args,
