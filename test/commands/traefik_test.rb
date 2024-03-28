@@ -30,6 +30,11 @@ class CommandsTraefikTest < ActiveSupport::TestCase
     assert_equal \
       "docker run --name traefik --detach --restart unless-stopped --volume /var/run/docker.sock:/var/run/docker.sock --env-file .kamal/env/traefik/traefik.env --log-opt max-size=\"10m\" --label traefik.http.routers.catchall.entryPoints=\"http\" --label traefik.http.routers.catchall.rule=\"PathPrefix(\\`/\\`)\" --label traefik.http.routers.catchall.service=\"unavailable\" --label traefik.http.routers.catchall.priority=\"1\" --label traefik.http.services.unavailable.loadbalancer.server.port=\"0\" #{@image} --providers.docker --log.level=\"DEBUG\" --accesslog.format=\"json\" --api.insecure --metrics.prometheus.buckets=\"0.1,0.3,1.2,5.0\"",
       new_command.run.join(" ")
+
+    @config[:traefik]["name"] = "pr-123"
+    assert_equal \
+      "docker run --name pr-123 --detach --restart unless-stopped --volume /var/run/docker.sock:/var/run/docker.sock --env-file .kamal/env/traefik/pr-123.env --log-opt max-size=\"10m\" --label traefik.http.routers.catchall.entryPoints=\"http\" --label traefik.http.routers.catchall.rule=\"PathPrefix(\\`/\\`)\" --label traefik.http.routers.catchall.service=\"unavailable\" --label traefik.http.routers.catchall.priority=\"1\" --label traefik.http.services.unavailable.loadbalancer.server.port=\"0\" #{@image} --providers.docker --log.level=\"DEBUG\" --accesslog.format=\"json\" --api.insecure --metrics.prometheus.buckets=\"0.1,0.3,1.2,5.0\"",
+      new_command.run.join(" ")
   end
 
   test "run with ports configured" do
