@@ -2,12 +2,14 @@ require "active_support/core_ext/enumerable"
 require "active_support/core_ext/module/delegation"
 
 class Kamal::Commander
-  attr_accessor :verbosity, :holding_lock, :hold_lock_on_error
+  attr_accessor :verbosity, :holding_lock, :connected
+  delegate :hosts, :roles, :primary_host, :primary_role, :roles_on, :traefik_hosts, :accessory_hosts, to: :specifics
 
   def initialize
     self.verbosity = :info
     self.holding_lock = false
-    self.hold_lock_on_error = false
+    self.connected = false
+    @specifics = nil
   end
 
   def config
@@ -24,10 +26,12 @@ class Kamal::Commander
   attr_reader :specific_roles, :specific_hosts
 
   def specific_primary!
+    @specifics = nil
     self.specific_hosts = [ config.primary_host ]
   end
 
   def specific_roles=(role_names)
+    @specifics = nil
     if role_names.present?
       @specific_roles = Kamal::Utils.filter_specific_items(role_names, config.roles)
 
@@ -40,6 +44,7 @@ class Kamal::Commander
   end
 
   def specific_hosts=(hosts)
+    @specifics = nil
     if hosts.present?
       @specific_hosts = Kamal::Utils.filter_specific_items(hosts, config.all_hosts)
 
@@ -51,39 +56,6 @@ class Kamal::Commander
     end
   end
 
-  def primary_host
-    # Given a list of specific roles, make an effort to match up with the primary_role
-    specific_hosts&.first || specific_roles&.detect { |role| role == config.primary_role }&.primary_host || specific_roles&.first&.primary_host || config.primary_host
-  end
-
-  def primary_role
-    roles_on(primary_host).first
-  end
-
-  def roles
-    (specific_roles || config.roles).select do |role|
-      ((specific_hosts || config.all_hosts) & role.hosts).any?
-    end
-  end
-
-  def hosts
-    (specific_hosts || config.all_hosts).select do |host|
-      (specific_roles || config.roles).flat_map(&:hosts).include?(host)
-    end
-  end
-
-  def roles_on(host)
-    roles.select { |role| role.hosts.include?(host.to_s) }
-  end
-
-  def traefik_hosts
-    specific_hosts || config.traefik_hosts
-  end
-
-  def accessory_hosts
-    specific_hosts || config.accessories.flat_map(&:hosts)
-  end
-
   def accessory_names
     config.accessories&.collect(&:name) || []
   end
@@ -93,8 +65,8 @@ class Kamal::Commander
   end
 
 
-  def app(role: nil)
-    Kamal::Commands::App.new(config, role: role)
+  def app(role: nil, host: nil)
+    Kamal::Commands::App.new(config, role: role, host: host)
   end
 
   def accessory(name)
@@ -166,8 +138,8 @@ class Kamal::Commander
     self.holding_lock
   end
 
-  def hold_lock_on_error?
-    self.hold_lock_on_error
+  def connected?
+    self.connected
   end
 
   private
@@ -180,5 +152,9 @@ class Kamal::Commander
       end
       SSHKit.config.command_map[:docker] = "docker" # No need to use /usr/bin/env, just clogs up the logs
       SSHKit.config.output_verbosity = verbosity
+    end
+
+    def specifics
+      @specifics ||= Kamal::Commander::Specifics.new(config, specific_hosts, specific_roles)
     end
 end

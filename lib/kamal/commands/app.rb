@@ -3,11 +3,12 @@ class Kamal::Commands::App < Kamal::Commands::Base
 
   ACTIVE_DOCKER_STATUSES = [ :running, :restarting ]
 
-  attr_reader :role, :role
+  attr_reader :role, :host
 
-  def initialize(config, role: nil)
+  def initialize(config, role: nil, host: nil)
     super(config)
     @role = role
+    @host = host
   end
 
   def run(hostname: nil)
@@ -18,7 +19,7 @@ class Kamal::Commands::App < Kamal::Commands::Base
       *([ "--hostname", hostname ] if hostname),
       "-e", "KAMAL_CONTAINER_NAME=\"#{container_name}\"",
       "-e", "KAMAL_VERSION=\"#{config.version}\"",
-      *role.env_args,
+      *role.env_args(host),
       *role.health_check_args,
       *role.logging_args,
       *config.volume_args,
@@ -49,7 +50,7 @@ class Kamal::Commands::App < Kamal::Commands::Base
 
 
   def current_running_container_id
-    docker :ps, "--quiet", *filter_args(statuses: ACTIVE_DOCKER_STATUSES), "--latest"
+    current_running_container(format: "--quiet")
   end
 
   def container_id_for_version(version, only_running: false)
@@ -57,22 +58,24 @@ class Kamal::Commands::App < Kamal::Commands::Base
   end
 
   def current_running_version
-    list_versions("--latest", statuses: ACTIVE_DOCKER_STATUSES)
+    pipe \
+      current_running_container(format: "--format '{{.Names}}'"),
+      extract_version_from_name
   end
 
   def list_versions(*docker_args, statuses: nil)
     pipe \
       docker(:ps, *filter_args(statuses: statuses), *docker_args, "--format", '"{{.Names}}"'),
-      %(while read line; do echo ${line##{role.container_prefix}-}; done) # Extract SHA from "service-role-dest-SHA"
+      extract_version_from_name
   end
 
 
   def make_env_directory
-    make_directory role.env.secrets_directory
+    make_directory role.env(host).secrets_directory
   end
 
   def remove_env_file
-    [ :rm, "-f", role.env.secrets_file ]
+    [ :rm, "-f", role.env(host).secrets_file ]
   end
 
 
@@ -81,8 +84,31 @@ class Kamal::Commands::App < Kamal::Commands::Base
       [ role.container_prefix, version || config.version ].compact.join("-")
     end
 
+    def latest_image_id
+      docker :image, :ls, *argumentize("--filter", "reference=#{config.latest_image}"), "--format", "'{{.ID}}'"
+    end
+
+    def current_running_container(format:)
+      pipe \
+        shell(chain(latest_image_container(format: format), latest_container(format: format))),
+        [ :head, "-1" ]
+    end
+
+    def latest_image_container(format:)
+      latest_container format: format, filters: [ "ancestor=$(#{latest_image_id.join(" ")})" ]
+    end
+
+    def latest_container(format:, filters: nil)
+      docker :ps, "--latest", *format, *filter_args(statuses: ACTIVE_DOCKER_STATUSES), argumentize("--filter", filters)
+    end
+
     def filter_args(statuses: nil)
       argumentize "--filter", filters(statuses: statuses)
+    end
+
+    def extract_version_from_name
+      # Extract SHA from "service-role-dest-SHA"
+      %(while read line; do echo ${line##{role.container_prefix}-}; done)
     end
 
     def filters(statuses: nil)

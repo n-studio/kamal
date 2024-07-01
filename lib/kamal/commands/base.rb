@@ -3,7 +3,6 @@ module Kamal::Commands
     delegate :sensitive, :argumentize, to: Kamal::Utils
 
     DOCKER_HEALTH_STATUS_FORMAT = "'{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}'"
-    DOCKER_HEALTH_LOG_FORMAT    = "'{{json .State.Health}}'"
 
     attr_accessor :config
 
@@ -18,7 +17,7 @@ module Kamal::Commands
         elsif config.ssh.proxy && config.ssh.proxy.is_a?(Net::SSH::Proxy::Command)
           cmd << " -o ProxyCommand='#{config.ssh.proxy.command_line_template}'"
         end
-        cmd << " -t #{config.ssh.user}@#{host} -p #{config.ssh.port} '#{command.join(" ")}'"
+        cmd << " -t #{config.ssh.user}@#{host} -p #{config.ssh.port} '#{command.join(" ").gsub("'", "'\\\\''")}'"
       end
     end
 
@@ -71,15 +70,15 @@ module Kamal::Commands
       end
 
       def shell(command)
-        [ :sh, "-c", "'#{command.flatten.join(" ").gsub("'", "'\\''")}'" ]
+        [ :sh, "-c", "'#{command.flatten.join(" ").gsub("'", "'\\\\''")}'" ]
       end
 
       def docker(*args)
         args.compact.unshift :docker
       end
 
-      def git(*args)
-        args.compact.unshift :git
+      def git(*args, path: nil)
+        [ :git, *([ "-C", path ] if path), *args.compact ]
       end
 
       def tags(**details)

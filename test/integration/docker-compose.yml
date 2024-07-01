@@ -1,4 +1,3 @@
-version: "3.7"
 name: "kamal-test"
 
 volumes:
@@ -18,7 +17,7 @@ services:
     build:
       context: docker/deployer
     environment:
-      - TEST_ID=${TEST_ID}
+      - TEST_ID=${TEST_ID:-}
     volumes:
       - ../..:/kamal
       - shared:/shared
